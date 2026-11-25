@@ -4,4 +4,7 @@ run-server/
 libs/*.jar
 !gradle/wrapper/gradle-wrapper.jar
 evidence/*.log
+!evidence/A-baseline-unbounded.log
+!evidence/B-patched-refused.log
+!evidence/C-selfcheck-pass.log
 evidence/ravencrash_*.log
