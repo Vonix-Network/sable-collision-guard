@@ -35,6 +35,11 @@ Raven's High Fantasy 0.3.1 (MC 1.21.1, NeoForge 21.1.265).
   guard present → refused in 11 ms. Legitimate sweep `IMMEDIATE` in both runs.
 - Reproducible jar (`preserveFileTimestamps = false`, `reproducibleFileOrder = true`), verified by two
   consecutive `clean build` runs producing identical bytes, so a recorded hash is meaningful evidence.
+- Self-check carries its verdict in the process exit status as well as the log, and both branches are
+  verified: PASS exits 0, an injected failure exits 1. `Runtime.halt(1)` is used rather than
+  `MinecraftServer.halt(boolean)` — whose argument is `waitForServer`, not an exit code, and which
+  deadlocks if handed `true` from the server thread — or `System.exit`, which NeoForge's shutdown path
+  swallowed.
 
 ### Notes
 

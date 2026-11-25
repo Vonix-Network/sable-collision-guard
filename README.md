@@ -5,7 +5,7 @@ Standalone, server-safe NeoForge 1.21.1 companion for the Otherworld freeze in
 
 - Mod id: `sableboundsguard`
 - Artifact: `sableboundsguard-1.21.1-1.0.0.jar`
-  (`5c762e18657c13d87fc9608a1ee4892c3b80e52c8063ea29ef57994cc41492c8`, 16,546 bytes)
+  (`3fb2e4e9e6d72cf4ffe0689306240b923bc1f2b8376697c9b1b3a4f27b8bbb2d`)
   Reproducible: `preserveFileTimestamps = false` and `reproducibleFileOrder = true`, so a rebuild from
   committed source yields the same bytes. Verified by two consecutive `clean build` runs.
 - Host mods (optional dependencies, never bundled): Sable `2.0.6`
@@ -149,9 +149,26 @@ SABLEBOUNDSGUARD-SELFCHECK RESULT=PASS
 together with a decision test that narrows a real `213,016,968,056,096`-block pose union to the current
 pose, logged by the production code path rather than by a fixture.
 
-All three runs used the exact deliverable bytes
-(`5c762e18657c13d87fc9608a1ee4892c3b80e52c8063ea29ef57994cc41492c8`) on a freshly installed NeoForge
-21.1.265 dedicated server with real Sable 2.0.6 and Lithium 0.15.4.
+All three runs used the same guard logic on a freshly installed NeoForge 21.1.265 dedicated server with
+real Sable 2.0.6 and Lithium 0.15.4. They were captured at artifact
+`5c762e18657c13d87fc9608a1ee4892c3b80e52c8063ea29ef57994cc41492c8`; the only later change is inside
+`SelfCheck` (the opt-in diagnostic), and the three guard classes — `SubLevelEntityCollisionMixin`,
+`LithiumSweeperMixin`, `BoundsGuard` — are byte-identical in the current artifact, verified with `cmp`.
+
+**Exit-status gate.** The self-check halves are only useful if they can fail loudly, so the verdict is
+carried in the process exit status as well as the log. `MinecraftServer.halt(boolean)` is not an exit-code
+parameter — its argument is `waitForServer`, and passing `true` joins the server thread from itself, which
+deadlocks. `System.exit` was also swallowed by NeoForge's shutdown path. `Runtime.halt(1)` sets the status
+deterministically. Both branches verified:
+
+```
+A  all guards bound      SELFCHECK RESULT=PASS halting server exitCode=0    PASS_EXIT=0
+B  injected failure      SELFCHECK RESULT=FAIL failures=1 exitCode=1        FAIL_EXIT=1
+```
+
+Case B uses `-Dsableboundsguard.selfcheck.forceFail=true`, a test-only switch, because removing Lithium to
+force a real failure aborts server init before the event fires — a verdict that can only be exercised on
+its passing branch is not a tested verdict.
 
 Raw logs: `evidence/A-baseline-unbounded.log`, `evidence/B-patched-refused.log`,
 `evidence/C-selfcheck-pass.log`.

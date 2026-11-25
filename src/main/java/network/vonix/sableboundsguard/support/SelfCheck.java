@@ -65,9 +65,15 @@ public final class SelfCheck {
             return;
         }
 
-        final List<String> failures = new ArrayList<>();
-
         LOG.info("SABLEBOUNDSGUARD-SELFCHECK begin");
+
+        // Test-only affordance: injects a synthetic failure so the non-zero exit path can be exercised on a
+        // server whose mods all load correctly. A verdict that can only be tested on the passing branch is
+        // not a tested verdict. Gated behind its own property and never set in normal play.
+        final List<String> failures = new ArrayList<>();
+        if (Boolean.getBoolean("sableboundsguard.selfcheck.forceFail")) {
+            failures.add("synthetic failure injected by -Dsableboundsguard.selfcheck.forceFail");
+        }
 
         // ---- binding ----
         expectMembers(failures, "sublevel-collision",
@@ -89,8 +95,25 @@ public final class SelfCheck {
             LOG.error("SABLEBOUNDSGUARD-SELFCHECK RESULT=FAIL failures={}", failures.size());
         }
 
-        LOG.info("SABLEBOUNDSGUARD-SELFCHECK halting server");
+        // Exit status must carry the verdict. `MinecraftServer.halt(boolean)` is NOT an exit-code parameter —
+        // its argument is `waitForServer`, and passing true calls serverThread.join(). Calling that from the
+        // server thread (which is where this event fires) joins the thread onto itself and deadlocks.
+        //
+        // `System.exit(1)` is also not enough here: NeoForge's shutdown path runs its own teardown and the
+        // process was observed exiting 0 anyway. `Runtime.halt` terminates without running shutdown hooks and
+        // sets the status deterministically.
+        //
+        // The authoritative signal remains the RESULT= line in the log; the exit status is a convenience for
+        // shell gates. Both are emitted so neither has to be inferred.
+        final boolean passed = failures.isEmpty();
+        LOG.info("SABLEBOUNDSGUARD-SELFCHECK halting server exitCode={}", passed ? 0 : 1);
+
         event.getServer().halt(false);
+        if (!passed) {
+            // Flush first: halt() skips shutdown hooks, so a buffered log line would be lost.
+            System.out.flush();
+            Runtime.getRuntime().halt(1);
+        }
     }
 
     // ---------------------------------------------------------------------------------------------
