@@ -32,7 +32,9 @@ Raven's High Fantasy 0.3.1 (MC 1.21.1, NeoForge 21.1.265).
 - Opt-in binding self-check (`-Dsableboundsguard.selfcheck=true`) proves all four handlers attached and
   that every decision predicate accepts legitimate input and rejects the incident's shapes.
 - A/B negative control on a live dedicated server: guard absent → the incident sweep never returns;
-  guard present → refused in 9 ms. Legitimate sweep `IMMEDIATE` in both runs.
+  guard present → refused in 11 ms. Legitimate sweep `IMMEDIATE` in both runs.
+- Reproducible jar (`preserveFileTimestamps = false`, `reproducibleFileOrder = true`), verified by two
+  consecutive `clean build` runs producing identical bytes, so a recorded hash is meaningful evidence.
 
 ### Notes
 

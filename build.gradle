@@ -216,6 +216,11 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.named('jar', Jar).configure {
+    // Reproducible archive: a recorded artifact hash is only evidence if a rebuild from committed source
+    // produces the same bytes. Without these two settings the jar embeds build timestamps and every rebuild
+    // yields a different SHA-256, which makes any hash recorded in documentation or a handoff meaningless.
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
     manifest {
         attributes([
                 'Specification-Title'   : mod_id,
