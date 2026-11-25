@@ -1,9 +1,24 @@
 # Changelog
 
+All notable changes to this project. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+
 ## 1.0.0 — 2026-11-24
 
-First candidate. Server-safe containment for the Sable sub-level collision freeze in
-Raven's High Fantasy 0.3.1 (MC 1.21.1, NeoForge 21.1.265).
+First public release. Server-safe containment for the Sable sub-level collision freeze.
+
+**Download:** `sableboundsguard-1.21.1-1.0.0.jar`
+**SHA-256:** `3fb2e4e9e6d72cf4ffe0689306240b923bc1f2b8376697c9b1b3a4f27b8bbb2d`
+**Install:** drop in the pack's `mods/` folder on both client and server. No config needed.
+
+### The problem this fixes
+
+A Sable sub-level's collision region is built by inverse-transforming the entity's swept box into the
+sub-level's local frame at its previous pose and again at its current pose, then unioning the two. When
+those poses are far apart the union spans the gap between them — millions of blocks. Sable refuses to walk
+such a region (its volume test logs `Enormous local sub-level collision bounds, quitting.`), but that
+`continue` only skips Sable's *own* block walk: the oversized motion is still returned, handed to vanilla
+`Entity.collide()`, expanded into a swept AABB, and walked by Lithium's uncapped
+`ChunkAwareBlockCollisionSweeper`. One item entity, one server tick, 413 seconds and climbing.
 
 ### Guards
 

@@ -197,11 +197,43 @@ Two system properties, both optional, both in blocks:
 | `sableboundsguard.maxMotion` | `64` | Largest per-tick entity motion allowed, blocks |
 | `sableboundsguard.maxSweepVolume` | `262144` | Largest block region one collision sweep may walk |
 
-## Requirements
+## Install
 
-Minecraft 1.21.1, NeoForge 21.1.265+, Sable 2.0+, Java 21. Lithium 0.15+ optional — its guard applies
-only when Lithium is present. Server-side mod: `displayTest = "IGNORE_ALL_VERSION"`, so clients need not
-install it.
+Drop the jar in the pack's `mods/` folder. It belongs on **both** the client and the server.
+
+- **Server** — required. This is where the freeze happens, and where the guards have to run.
+- **Client** — optional but recommended for a singleplayer or LAN world, because the same collision code
+  runs in an integrated server. `displayTest = "IGNORE_ALL_VERSION"`, so a client without it can still
+  join a server that has it, and a client with it is harmless.
+
+No configuration is required. The jar works on a fresh install with Sable and Lithium present.
+
+## Compatibility
+
+| | |
+|---|---|
+| Minecraft | 1.21.1 |
+| NeoForge | 21.1.265 or newer (declared `[21.1.265,)`) |
+| Java | 21 |
+| Sable | 2.0 or newer — built and verified against 2.0.6 |
+| Lithium | 0.15+ optional — its guard applies only when present |
+| Side | Client and server; `IGNORE_ALL_VERSION` |
+
+- **Sable is a required dependency** (declared `required` in `neoforge.mods.toml`). The guards patch Sable's
+  collision method directly, so a Sable-free install is a configuration mistake rather than a degraded mode.
+  The guard classes are also gated on the target being on the classpath, so a missing Sable produces a clear
+  "target absent" line instead of a boot failure.
+- **Lithium is optional by design.** The sweeper guard is gated on the target class being on the
+  classpath, so a pack without Lithium simply runs the Sable-side guards instead of failing to boot.
+- **Sable's own version ceiling is untouched.** This mod adds a *lower* bound; it does not raise, lower or
+  depend on Sable's internal 125,000,000-block figure.
+- **No conflicts with other Sable mixins are expected.** Every guard targets a method Sable already owns
+  and adds a bounded early-out or a value clamp; nothing is `@Overwrite`n, no Minecraft class is patched,
+  and no other mod's behaviour is changed.
+- **Known interaction, not a conflict:** packs running C2ME will show the freeze stack passing through
+  `ServerChunkCache.getChunk` with C2ME instrumentation in the frame. That is C2ME doing its normal job on
+  a `getChunk` call that should never have been made in the first place — it is not a C2ME defect.
+
 
 ## Building
 
@@ -220,3 +252,15 @@ Produces `build/libs/sableboundsguard-1.21.1-1.0.0.jar` and, separately,
 The proper long-term fix is in Sable: a pose pair that far apart should not produce a union used as a
 sweep region at all, and a declined pass should not return the motion that justified declining it. This
 mod is a containment layer that can ship before that lands.
+
+Full write-up, evidence and timeline: [`docs/DIAGNOSIS.md`](docs/DIAGNOSIS.md).
+
+Related upstream issues: ryanhcode/sable#1228, #1447, #857, #338, #1098; AxalotLDev/Async#205.
+
+## License
+
+LGPL-3.0-or-later — see [LICENSE](LICENSE).
+
+Sable is by ryanhcode and does all the actual work; this mod is unaffiliated and not endorsed by anyone
+involved with it. Lithium is by the CaffeineMC team. Neither is bundled here.
+
