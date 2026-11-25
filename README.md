@@ -5,6 +5,7 @@ Standalone, server-safe NeoForge 1.21.1 companion for the Otherworld freeze in
 
 - Mod id: `sableboundsguard`
 - Artifact: `sableboundsguard-1.21.1-1.0.0.jar`
+  (`323229552f0e232accfaa56c5d4f1a89f5678bb107074107580b41ea1ca764e9`, 16,546 bytes)
 - Host mods (optional dependencies, never bundled): Sable `2.0.6`
   (`9c199157843bf953a47dff625fc5bb41c01a90538d35ad18e6996bbcb8a617c2`) and its nested companion
   `1.6.0` (`873633e35046e3761b277ff8a1ecad0d55d9a3014fa81a0b084c9aecba1f3bed`), Lithium `0.15.4`
