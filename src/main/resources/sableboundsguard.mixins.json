@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8.7",
+  "package": "network.vonix.sableboundsguard.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "plugin": "network.vonix.sableboundsguard.support.GuardMixinPlugin",
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "mixins": [
+    "LithiumSweeperMixin",
+    "SubLevelEntityCollisionMixin"
+  ],
+  "client": [],
+  "server": []
+}

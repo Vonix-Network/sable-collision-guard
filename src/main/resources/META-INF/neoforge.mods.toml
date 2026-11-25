@@ -1,0 +1,45 @@
+modLoader = "javafml"
+loaderVersion = "${loader_version_range}"
+license = "${mod_license}"
+issueTrackerURL = "https://github.com/Vonix-Network"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+authors = "${mod_authors}"
+description = '''${mod_description}'''
+# Server-side guard. Clients must not be required to install it; a client that does install it is harmless.
+# IGNORE_ALL_VERSION is the value for a mod the client may omit entirely.
+displayTest = "IGNORE_ALL_VERSION"
+
+[[mixins]]
+config = "sableboundsguard.mixins.json"
+
+[[dependencies.sableboundsguard]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neo_version_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.sableboundsguard]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1]"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.sableboundsguard]]
+modId = "sable"
+type = "required"
+versionRange = "[2.0,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.sableboundsguard]]
+modId = "lithium"
+type = "optional"
+versionRange = "[0.15,)"
+ordering = "AFTER"
+side = "BOTH"

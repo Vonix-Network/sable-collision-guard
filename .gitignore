@@ -1,0 +1,7 @@
+.gradle/
+build/
+run-server/
+libs/*.jar
+!gradle/wrapper/gradle-wrapper.jar
+evidence/*.log
+evidence/ravencrash_*.log

@@ -1,0 +1,33 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "LGPL-3.0-or-later"
+
+# Throwaway negative-control probe. Ships no fix. Not for distribution.
+[[mods]]
+modId = "sableprobe"
+version = "0.0.1"
+displayName = "Sable Sweep Probe (negative control, not for distribution)"
+authors = "Vonix Network"
+description = '''Negative control for the Sable collision bounds guard. Contains no fix.'''
+displayTest = "IGNORE_ALL_VERSION"
+
+[[dependencies.sableprobe]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.265,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.sableprobe]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1]"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.sableprobe]]
+modId = "lithium"
+type = "required"
+versionRange = "[0.15,)"
+ordering = "AFTER"
+side = "BOTH"

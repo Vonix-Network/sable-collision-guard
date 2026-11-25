@@ -1,0 +1,248 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+version = "${minecraft_version}-${mod_version}"
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+sourceSets {
+    // Negative-control probe. Deliberately a separate source set: it must not be able to reference any class
+    // from the guard, so a probe that accidentally contains a fix is impossible rather than merely discouraged.
+    probe {
+        compileClasspath += sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.runtimeClasspath
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Host pins. A companion authored against one host build must not silently compile against another:
+// the filename is a claim, the hash is the identity.
+// ---------------------------------------------------------------------------------------------
+def sableJar = file(project.findProperty('sable_jar'))
+def sableCompanionJar = file('libs/sable-companion-common-1.21.1-1.6.0.jar')
+def lithiumJar = file('../integrated-boogaloo/server_pack/mods/lithium-neoforge-0.15.4+mc1.21.1.jar')
+
+if (!sableJar.isFile()) {
+    throw new GradleException("Pinned Sable jar is missing: ${sableJar}")
+}
+if (!sableCompanionJar.isFile()) {
+    throw new GradleException("Pinned Sable companion jar is missing: ${sableCompanionJar}")
+}
+
+
+neoForge {
+    version = project.neo_version
+
+    validateAccessTransformers = true
+
+    runs {
+        server {
+            server()
+            programArgument '--nogui'
+            gameDirectory = project.file('run-server')
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+        "sableprobe" {
+            sourceSet sourceSets.probe
+        }
+    }
+}
+
+dependencies {
+    // Compile-time targets for the annotation processor. Never bundled.
+    // Sable's BoundingBox3d/Pose3d live in its nested companion jar, which is a separate artifact.
+    compileOnly files(sableJar)
+    compileOnly files(sableCompanionJar)
+    if (lithiumJar.isFile()) {
+        compileOnly files(lithiumJar)
+    } else {
+        throw new GradleException("Pinned Lithium jar is missing: ${lithiumJar}")
+    }
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+
+tasks.register('verifyHostPins') {
+    doLast {
+        def expect = [
+            [file: sableJar,   name: 'sable-neoforge-1.21.1-2.0.6.jar',
+             hash: '9c199157843bf953a47dff625fc5bb41c01a90538d35ad18e6996bbcb8a617c2'],
+            [file: sableCompanionJar, name: 'sable-companion-common-1.21.1-1.6.0.jar',
+             hash: '873633e35046e3761b277ff8a1ecad0d55d9a3014fa81a0b084c9aecba1f3bed'],
+            [file: lithiumJar, name: 'lithium-neoforge-0.15.4+mc1.21.1.jar',
+             hash: '488f33216030c1cb0baa33e59de3d657d08d5795a6c2080c8c8bbbc133fc8757'],
+        ]
+
+        expect.each { pin ->
+            if (pin.file.name != pin.name) {
+                throw new GradleException("Refusing to build against an unrecognised host jar: ${pin.file.name}")
+            }
+            def digest = java.security.MessageDigest.getInstance('SHA-256')
+            pin.file.withInputStream { input ->
+                byte[] buffer = new byte[65536]
+                int read
+                while ((read = input.read(buffer)) != -1) {
+                    digest.update(buffer, 0, read)
+                }
+            }
+            def hash = digest.digest().collect { String.format('%02x', it) }.join()
+            if (hash != pin.hash) {
+                throw new GradleException("Host pin hash mismatch for ${pin.name}: ${hash}")
+            }
+            logger.lifecycle("Host pin OK: ${pin.name} (${pin.file.length()} bytes, sha256 ${hash})")
+        }
+    }
+}
+
+tasks.named('compileJava') {
+    dependsOn 'verifyHostPins'
+}
+
+// Mixin enforces package ownership at class-load time: a class outside a declared mixin package must
+// never reference one inside it. That failure is runtime-only, so gate it here on the compiled bytes.
+tasks.register('verifyMixinPackageOwnership') {
+    def mixinPkg = 'network/vonix/sableboundsguard/mixin'
+    def classesDir = layout.buildDirectory.dir('classes/java/main')
+    dependsOn 'compileJava'
+    doLast {
+        def root = classesDir.get().asFile
+        if (!root.exists()) {
+            throw new GradleException('Compiled classes are missing; cannot verify mixin package ownership')
+        }
+        def offenders = []
+        fileTree(root).matching { include '**/*.class' }.each { classFile ->
+            def relative = root.toPath().relativize(classFile.toPath()).toString().replace('\\', '/')
+            if (relative.startsWith(mixinPkg + '/')) {
+                return
+            }
+            if (new String(classFile.bytes, 'ISO-8859-1').contains(mixinPkg)) {
+                offenders << relative
+            }
+        }
+        if (!offenders.isEmpty()) {
+            throw new GradleException("Classes outside the mixin package reference it: ${offenders}")
+        }
+        logger.lifecycle('Mixin package ownership OK: no non-mixin class references ' + mixinPkg)
+    }
+}
+
+tasks.named('check') {
+    dependsOn 'verifyMixinPackageOwnership'
+}
+
+// A guard that silently failed to attach looks exactly like a guard that works. Fail the build if the
+// packaged jar lost its mixin config, and if the config declares a refmap that is not in the jar.
+//
+// Every injection in this mod is `remap = false` against a mod-owned class name, so the annotation
+// processor emits no refmap and the config does not declare one. If a future change adds a mixin against
+// an obfuscated Minecraft class, that mixin needs a refmap and this gate will demand one.
+tasks.register('verifyPackagedMixin') {
+    def jarTask = tasks.named('jar')
+    dependsOn 'jar'
+    doLast {
+        def jarFile = jarTask.get().archiveFile.get().asFile
+        def zip = new java.util.zip.ZipFile(jarFile)
+        try {
+            def configEntry = zip.getEntry("${mod_id}.mixins.json")
+            if (configEntry == null) {
+                throw new GradleException("Packaged jar has no ${mod_id}.mixins.json")
+            }
+            def config = new groovy.json.JsonSlurper().parse(zip.getInputStream(configEntry))
+            def declaredRefmap = config.refmap
+            if (declaredRefmap != null && zip.getEntry(declaredRefmap) == null) {
+                throw new GradleException("Config declares refmap ${declaredRefmap} but the jar has none"
+                        + " — run `clean` and rebuild")
+            }
+
+            def manifest = zip.getEntry('META-INF/MANIFEST.MF')
+            if (manifest == null) {
+                throw new GradleException('Packaged jar has no manifest')
+            }
+            def text = zip.getInputStream(manifest).getText('UTF-8')
+            if (!text.contains("MixinConfigs: ${mod_id}.mixins.json")) {
+                throw new GradleException("Manifest does not declare MixinConfigs: ${mod_id}.mixins.json")
+            }
+
+            def declared = (config.mixins ?: []) + (config.client ?: []) + (config.server ?: [])
+            def missing = declared.findAll { name ->
+                zip.getEntry("${config.package.replace('.', '/')}/${name}.class") == null
+            }
+            if (!missing.isEmpty()) {
+                throw new GradleException("Mixin config lists classes missing from the jar: ${missing}")
+            }
+
+            logger.lifecycle("Packaged mixin check OK: ${jarFile.name} (${jarFile.length()} bytes),"
+                    + " ${declared.size()} mixin(s), refmap ${declaredRefmap ?: 'not required'}")
+        } finally {
+            zip.close()
+        }
+    }
+}
+
+
+tasks.named('build') {
+    dependsOn 'verifyPackagedMixin'
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version     : minecraft_version,
+            neo_version           : neo_version,
+            neo_version_range     : neo_version_range,
+            loader_version_range  : loader_version_range,
+            sable_version         : sable_version,
+            mod_id                : mod_id,
+            mod_name              : mod_name,
+            mod_license           : mod_license,
+            mod_version           : mod_version,
+            mod_authors           : mod_authors,
+            mod_description       : mod_description,
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'   : mod_id,
+                'Specification-Vendor'  : mod_authors,
+                'Specification-Version' : '1',
+                'Implementation-Title'  : project.name,
+                'Implementation-Version': project.jar.archiveVersion,
+                'Implementation-Vendor' : mod_authors,
+                'MixinConfigs'          : "${mod_id}.mixins.json",
+        ])
+    }
+}
+
+// Negative-control probe artifact. Built separately, never bundled with the guard, and named so it cannot be
+// mistaken for a release artifact.
+tasks.register('probeJar', Jar) {
+    archiveBaseName = 'sableprobe'
+    archiveVersion = '0.0.1'
+    archiveClassifier = 'NEGATIVE-CONTROL-DO-NOT-SHIP'
+    from sourceSets.probe.output
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('build') {
+    dependsOn 'probeJar'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
